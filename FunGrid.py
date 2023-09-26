@@ -9,6 +9,12 @@ This game simulates agents navigating a grid environment, avoiding obstacles, an
 import pygame
 import sys
 import random
+import numpy as np
+import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense
+from tensorflow.keras.optimizers import Adam
+
 
 # Initialize pygame
 pygame.init()
@@ -23,14 +29,58 @@ FOOD_COLOR = (0, 255, 0)  # Green
 CELL_SIZE = 40  # Size of each grid cell
 FOOD_RADIUS = CELL_SIZE // 4  # Radius of the food
 BORDER_WIDTH = 3  # Width of the border around the screen
-FPS = 60
-NUM_AGENTS = 1
-NUM_OBSTACLES = 10
-NUM_FOOD = 10
+FPS = 10
+NUM_AGENTS = 5
+NUM_OBSTACLES = 20
+NUM_FOOD = 20
+BATCH_SIZE = 100
 
 # Create the screen object
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 pygame.display.set_caption('Grid Environment')
+
+class DQNAgent:
+    def __init__(self, state_size, action_size):
+        self.state_size = state_size
+        self.action_size = action_size
+        self.memory = []
+        self.gamma = 0.95  # discount rate
+        self.epsilon = 1.0  # exploration rate
+        self.epsilon_min = 0.01
+        self.epsilon_decay = 0.995
+        self.learning_rate = 0.001
+        self.model = self._build_model()
+
+    def _build_model(self):
+        model = Sequential()
+        model.add(Dense(24, input_dim=self.state_size, activation='relu'))
+        model.add(Dense(24, activation='relu'))
+        model.add(Dense(self.action_size, activation='linear'))
+        model.compile(loss='mse', optimizer=Adam(lr=self.learning_rate))
+        return model
+
+    def remember(self, state, action, reward, next_state, done):
+        self.memory.append((state, action, reward, next_state, done))
+
+    def act(self, state):
+        if np.random.rand() <= self.epsilon:
+            return random.randrange(self.action_size)
+        act_values = self.model.predict(state.reshape(1, -1))
+        return np.argmax(act_values[0])
+
+    def replay(self, batch_size):
+        minibatch = random.sample(self.memory, batch_size)
+        for state, action, reward, next_state, done in minibatch:
+            target = reward
+            if not done:
+                target = reward + self.gamma * np.amax(self.model.predict(next_state.reshape(1, -1))[0])
+            target_f = self.model.predict(state.reshape(1, -1))
+            target_f[0][action] = target
+            self.model.train_on_batch(state.reshape(1, -1), target_f)
+        if self.epsilon > self.epsilon_min:
+            self.epsilon *= self.epsilon_decay
+
+
 
 class SpatialGrid:
     """Represents a spatial grid environment for the game."""
@@ -135,7 +185,8 @@ class Agent(Entity):
         self.food_eaten = 0
         self.steps_since_food = 0
         self.score = 0
-
+        self.dqn_agent = DQNAgent(state_size=7*7*4+6 , action_size=4)  # Define state size based on get_state
+        
     def render(self, surface):
         """Render the agent on the game surface."""
         pygame.draw.rect(surface, self.color, (self.x, self.y, CELL_SIZE, CELL_SIZE))
@@ -150,14 +201,14 @@ class Agent(Entity):
             return 100
 
         return -1
-
+    
     def move(self, action, food_list):
         """Move the agent based on the chosen action and update its state."""
         move_map = {
-            "up": (0, -CELL_SIZE),
-            "down": (0, CELL_SIZE),
-            "left": (-CELL_SIZE, 0),
-            "right": (CELL_SIZE, 0)
+            0: (0, -CELL_SIZE),
+            1: (0, CELL_SIZE),
+            2: (-CELL_SIZE, 0),
+            3: (CELL_SIZE, 0)
         }
 
         dx, dy = move_map.get(action, (0, 0))
@@ -166,32 +217,40 @@ class Agent(Entity):
         items_in_target_cell = self.spatial_grid.get_items(new_x, new_y)
         reward = self.get_reward(items_in_target_cell)
 
+        # If the agent is not moving into an obstacle or another agent, move it
+
         if reward != -10:
             self.spatial_grid.move(self, self.x, self.y, new_x, new_y)
             self.x, self.y = new_x, new_y
-            self.steps_since_food += 1
-
             if reward == 100:
-                food = next(item for item in items_in_target_cell if isinstance(item, Food))
-                self.spatial_grid.remove(food, food.x, food.y)
-                if food in food_list:
-                    food_list.remove(food)
                 self.food_eaten += 1
                 self.steps_since_food = 0
+                self.score += 100
+                # If the item is food, remove it from the game
+                for food in food_list:
+                    if food.x == self.x and food.y == self.y:
+                        food_list.remove(food)
+                        self.spatial_grid.remove(food, food.x, food.y)
+                        break
 
         return reward, action
 
     def choose_action(self, state):
-        """Choose an action for the agent based on its current state."""
-        action = random.choice(["up", "down", "left", "right"])
-        return action
+        return self.dqn_agent.act(state)
     
-    def update(self, food_list, state):
+    def update(self, food_list, state, game):
         """Update the agent's state and take an action."""
         choice = self.choose_action(state)
-        step_reward, action = self.move(choice, food_list)
-        self.score += step_reward
-        return step_reward, action
+        reward, action = self.move(choice, food_list)
+        self.score += reward
+        next_state = game.get_state(self)
+        done = False
+        self.dqn_agent.remember(state, action, reward, next_state, done)
+        # If agent memory is long enough, train the agent with a minibatch of 32 samples
+        if len(self.dqn_agent.memory) > BATCH_SIZE and (game.steps+1) % BATCH_SIZE == 0 and game.steps > 0:
+            self.dqn_agent.replay(BATCH_SIZE)  # Train the agent with a minibatch of 32 samples
+
+        return reward, action
 
 class Game:
     """Main game class that handles game logic and rendering."""
@@ -269,10 +328,10 @@ class Game:
         agent_start_x, agent_start_y = random.choice(empty_cells)
         self.agents = []
         colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (0, 255, 255)]
-        for color in colors:
+        for agent in range(NUM_AGENTS):
             empty_cells = self.spatial_grid.get_empty_cells()
             agent_start_x, agent_start_y = random.choice(empty_cells)
-            agent = Agent(agent_start_x, agent_start_y, self.spatial_grid, color=color)
+            agent = Agent(agent_start_x, agent_start_y, self.spatial_grid, color=colors[agent % len(colors)])
             self.spatial_grid.insert(agent, agent_start_x, agent_start_y)
             self.agents.append(agent)
 
@@ -282,6 +341,10 @@ class Game:
         self.steps = 0
         self.score = 0
         self.episode += 1
+        for agent in self.agents:
+            agent.score = 0
+            agent.food_eaten = 0
+            agent.steps_since_food = 0
 
     def update_food(self):
         """Update the food items in the game."""
@@ -304,7 +367,15 @@ class Game:
         time_step = self.steps
         agent_col = agent.x // CELL_SIZE
         agent_row = agent.y // CELL_SIZE
-        return grid_state, food_eaten, steps_since_food, score, time_step, agent_col, agent_row
+
+        # Flatten the grid_state
+        flattened_grid_state = np.array(grid_state).reshape(-1)
+        
+        # Combine all state components into a single 1D array
+        combined_state = np.concatenate([flattened_grid_state, [food_eaten, steps_since_food, score, time_step, agent_col, agent_row]])
+        
+        # Return the combined state reshaped for the neural network input
+        return combined_state.reshape(1, -1)
 
     def draw_entities(self, entity_list):
         """Draw all entities on the game screen."""
@@ -325,20 +396,19 @@ class Game:
             self.screen.fill(BACKGROUND_COLOR)
             for agent in self.agents:
                 state = self.get_state(agent)
-                reward, action = agent.update(food_list=self.food, state=state)
+                reward, action = agent.update(food_list=self.food, state=state, game=self)
                 print(f"Episode: {self.episode}, Step: {self.steps}, Reward: {reward}, Action: {action}, Score: {agent.score}")
-                
 
             self.draw_entities(self.agents + self.obstacles + self.food)  # Update this line to include all agents
             self.update_food()
             self.draw_grid()
 
             pygame.display.flip()
-            clock.tick(0)
+            clock.tick(FPS)
             self.steps += 1
             
 
-            if self.steps % 100 == 0 and self.steps > 0:
+            if self.steps % 1000 == 0 and self.steps > 0:
                 self.reset()
             
 def main():
