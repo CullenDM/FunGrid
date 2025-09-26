@@ -11,9 +11,16 @@ requirements) and launch the PPO training loop with:
 python FunGrid.py
 ```
 
-This command instantiates :class:`fun_grid.simulation.EnvironmentSimulation`,
+This convenience wrapper instantiates :class:`fun_grid.simulation.EnvironmentSimulation`,
 which coordinates the grid environments, agents, PPO optimiser, and the optional
 pygame visualiser.
+
+If you prefer to target the package entry point directly (for example when
+embedding the project in another codebase), you can run:
+
+```bash
+python -m fun_grid.main
+```
 
 ## Package layout
 
