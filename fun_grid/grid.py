@@ -11,15 +11,17 @@ import numpy as np
 from .cell_types import CellType, ObstacleSetupChoice
 from .config import Config
 
+Coord = Tuple[int, int]
+
 
 class GridEnvironment:
     """Represents the grid environment for agents."""
 
     MIN_EMPTY_PERCENTAGE = Config.MIN_EMPTY_PERCENTAGE
 
-    ADJACENT_DIRECTIONS: Sequence[Tuple[int, int]] = [(0, -1), (0, 1), (-1, 0), (1, 0)]
-    DIAGONAL_DIRECTIONS: Sequence[Tuple[int, int]] = [(-1, -1), (-1, 1), (1, -1), (1, 1)]
-    ALL_DIRECTIONS: Sequence[Tuple[int, int]] = tuple(ADJACENT_DIRECTIONS + list(DIAGONAL_DIRECTIONS))
+    ADJACENT_DIRECTIONS: Sequence[Coord] = [(0, -1), (0, 1), (-1, 0), (1, 0)]
+    DIAGONAL_DIRECTIONS: Sequence[Coord] = [(-1, -1), (-1, 1), (1, -1), (1, 1)]
+    ALL_DIRECTIONS: Sequence[Coord] = tuple(ADJACENT_DIRECTIONS + list(DIAGONAL_DIRECTIONS))
 
     def __init__(self, idx: int, size: Optional[int] = None) -> None:
         self.idx = idx
@@ -35,18 +37,18 @@ class GridEnvironment:
         self.food_tick_speed = Config.FOOD_TICK_SPEED
 
         self.world_type = ObstacleSetupChoice.MIXED_ALL_TYPES
-        self.agents: Set[Tuple[int, int]] = set()
+        self.agents: Set[Coord] = set()
         self.new_grid_generated = True
 
         self.grid: np.ndarray | None = None
-        self.empty_cells: Set[Tuple[int, int]] = set()
-        self.food_cells: Set[Tuple[int, int]] = set()
-        self.obstacle_cells: Set[Tuple[int, int]] = set()
-        self.moveable_obstacle_cells: Set[Tuple[int, int]] = set()
-        self.grabbable_obstacle_cells: Set[Tuple[int, int]] = set()
+        self.empty_cells: Set[Coord] = set()
+        self.food_cells: Set[Coord] = set()
+        self.obstacle_cells: Set[Coord] = set()
+        self.moveable_obstacle_cells: Set[Coord] = set()
+        self.grabbable_obstacle_cells: Set[Coord] = set()
         self.bouncing_obstacle_objects: Set[BouncingObstacle] = set()
-        self.moved_obstacles: Set[Tuple[int, int]] = set()
-        self.placed_obstacles: Set[Tuple[int, int]] = set()
+        self.moved_obstacles: Set[Coord] = set()
+        self.placed_obstacles: Set[Coord] = set()
         self.food_remaining = 0
 
         self.reset()
@@ -304,7 +306,7 @@ class GridEnvironment:
                 self.grid[cell] = obstacle.grid_value
             self.empty_cells.remove(cell)
 
-    def _add_to_specific_set(self, item_type: CellType, cell: Tuple[int, int]) -> None:
+    def _add_to_specific_set(self, item_type: CellType, cell: Coord) -> None:
         if item_type == CellType.FOOD:
             self.food_cells.add(cell)
         elif item_type == CellType.OBSTACLE:
@@ -325,7 +327,7 @@ class GridEnvironment:
         }
         min_accessible_sides = 2
 
-        food_cells_to_move: List[Tuple[int, int]] = []
+        food_cells_to_move: List[Coord] = []
         for r, c in list(self.food_cells):
             adjacent_obstacle_count = 0
             for dr, dc in self.ADJACENT_DIRECTIONS:
@@ -500,8 +502,8 @@ class GridEnvironment:
                 new_r, new_c = random.choice(empty_adjacent)
                 self._move_item(r, c, new_r, new_c, CellType.FOOD)
 
-    def build_non_empty_cells(self) -> Set[Tuple[int, int]]:
-        s: Set[Tuple[int, int]] = set()
+    def build_non_empty_cells(self) -> Set[Coord]:
+        s: Set[Coord] = set()
         s |= self.food_cells
         s |= self.obstacle_cells
         s |= self.moveable_obstacle_cells
@@ -511,7 +513,7 @@ class GridEnvironment:
         return s
 
     def update_bouncing_obstacles(
-        self, current_tick: int, non_empty_cells: Set[Tuple[int, int]]
+        self, current_tick: int, non_empty_cells: Set[Coord]
     ) -> None:
         if not self.bouncing_obstacle_objects or self.grid is None:
             return
@@ -575,7 +577,7 @@ class GridEnvironment:
         self.empty_cells.add((old_r, old_c))
         self.empty_cells.remove((new_r, new_c))
 
-    def _remove_from_specific_set(self, item_type: CellType, cell: Tuple[int, int]) -> None:
+    def _remove_from_specific_set(self, item_type: CellType, cell: Coord) -> None:
         if item_type == CellType.FOOD:
             self.food_cells.discard(cell)
         elif item_type == CellType.OBSTACLE:
@@ -595,29 +597,29 @@ class GridEnvironment:
         r: int,
         c: int,
         target_types: Set[CellType],
-        directions: Sequence[Tuple[int, int]] | None = None,
-    ) -> List[Tuple[int, int]]:
+        directions: Sequence[Coord] | None = None,
+    ) -> List[Coord]:
         dirs = directions if directions is not None else self.ADJACENT_DIRECTIONS
-        adjacent_cells: List[Tuple[int, int]] = []
+        adjacent_cells: List[Coord] = []
         for dr, dc in dirs:
             nr, nc = r + dr, c + dc
             if self.is_within_bounds(nr, nc) and CellType(self.grid[nr, nc]) in target_types:
                 adjacent_cells.append((nr, nc))
         return adjacent_cells
 
-    def get_adjacent_empty_cells(self, r: int, c: int) -> List[Tuple[int, int]]:
+    def get_adjacent_empty_cells(self, r: int, c: int) -> List[Coord]:
         return self._get_adjacent_cells(r, c, {CellType.EMPTY})
 
-    def get_adjacent_food(self, r: int, c: int) -> List[Tuple[int, int]]:
+    def get_adjacent_food(self, r: int, c: int) -> List[Coord]:
         return self._get_adjacent_cells(r, c, {CellType.FOOD})
 
-    def get_adjacent_and_diagonal_food(self, r: int, c: int) -> List[Tuple[int, int]]:
+    def get_adjacent_and_diagonal_food(self, r: int, c: int) -> List[Coord]:
         return self._get_adjacent_cells(r, c, {CellType.FOOD}, directions=self.ALL_DIRECTIONS)
 
-    def get_adjacent_grabbable_obstacles(self, r: int, c: int) -> List[Tuple[int, int]]:
+    def get_adjacent_grabbable_obstacles(self, r: int, c: int) -> List[Coord]:
         return self._get_adjacent_cells(r, c, {CellType.GRABBABLE_OBSTACLE})
 
-    def get_empty_cells(self) -> Set[Tuple[int, int]]:
+    def get_empty_cells(self) -> Set[Coord]:
         return self.empty_cells.copy()
 
     def update_all_sets(self) -> None:
@@ -668,7 +670,7 @@ class BouncingObstacle:
         self.tick, self.grid_value = self.determine_type_properties()
 
         self.dead = False
-        self.bounced_agents: Set[Tuple[int, int]] = set()
+        self.bounced_agents: Set[Coord] = set()
         self.max_attempts = 10
 
     def __hash__(self) -> int:  # pragma: no cover - identity hashing
@@ -713,7 +715,7 @@ class BouncingObstacle:
         elif self.type == "counter_rotating":
             self.rotate_direction(clockwise=False)
 
-    def _handle_collision_behavior_wandering(self, other_objects: Set[Tuple[int, int]]) -> bool:
+    def _handle_collision_behavior_wandering(self, other_objects: Set[Coord]) -> bool:
         valid_directions = []
         for potential_dir, (dr, dc) in BouncingObstacle.ALL_DIRECTIONS_DELTAS.items():
             next_x, next_y = self.x + dr, self.y + dc
@@ -727,7 +729,7 @@ class BouncingObstacle:
         self.dead = True
         return True
 
-    def update(self, grid: np.ndarray, other_objects: Set[Tuple[int, int]], tick: int) -> None:
+    def update(self, grid: np.ndarray, other_objects: Set[Coord], tick: int) -> None:
         if tick % self.tick != 0 or self.dead:
             return
 
