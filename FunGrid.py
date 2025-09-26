@@ -1,13 +1,6 @@
-"""Convenience launcher for the FunGrid training simulation."""
+"""Compatibility module for running the FunGrid game."""
 
-from fun_grid.simulation import EnvironmentSimulation
-
-
-def main() -> None:
-    """Instantiate and run the environment simulation."""
-
-    simulation = EnvironmentSimulation()
-    simulation.run()
+from fun_grid.main import main
 
 
 if __name__ == "__main__":
