@@ -9,6 +9,8 @@ import torch
 from torch import optim
 
 from .config import Config
+from .entities import Agent
+from .grid import GridEnvironment
 from .rl import PPO
 from .visualizer import GridVisualizer
 
@@ -32,8 +34,8 @@ class EnvironmentSimulation:
         self.agents = self.initialize_agents(self.model, self.envs, self.visualizer)
         self._quit = False
 
-    def initialize_environments(self) -> List:
-        return [GridEnvironment(idx) for idx in range(Config.NUM_ENVS)]  # type: ignore[name-defined]
+    def initialize_environments(self) -> List[GridEnvironment]:
+        return [GridEnvironment(idx) for idx in range(Config.NUM_ENVS)]
 
     def initialize_visualizer(self, envs) -> GridVisualizer | None:
         if Config.VISUALIZE:
@@ -56,13 +58,15 @@ class EnvironmentSimulation:
         agents = []
         for env_idx, env in enumerate(envs):
             for agent_idx in range(Config.NUM_AGENTS):
-                agent = Agent(model, env, env_idx, agent_idx, visualizer, initial_energy)  # type: ignore[name-defined]
+                agent = Agent(model, env, env_idx, agent_idx, visualizer, initial_energy or Agent.INITIAL_ENERGY)
                 agents.append(agent)
         return agents
 
     def reset_agents(self, agents: Iterable) -> None:
         for agent in agents:
             agent.reset()
+        for env in self.envs:
+            env.new_grid_generated = False
 
     def run(self) -> None:
         episode = 1
@@ -185,7 +189,6 @@ class EnvironmentSimulation:
             if Config.FOOD_TICK:
                 env.update_food(steps)
             if len(env.bouncing_obstacle_objects) > 0:
-                env.update_all_sets()
                 non_empty = env.build_non_empty_cells()
                 env.update_bouncing_obstacles(steps, non_empty)
             if self.visualizer is not None:

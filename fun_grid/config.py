@@ -35,20 +35,45 @@ class Config:
     SAVE_TRANSITIONS: bool = False
     TRANSITIONS_FILE_PATH: str = "artifacts/transitions.pkl"
 
+    # Environment layout and counts
+    ENVIRONMENT_SIZE: int = 16
+    GRID_SIZE: int = 16
+    MIN_EMPTY_PERCENTAGE: float = 0.35
+    VARIABLE_FOOD_COUNT: bool = False
+    SCALE_FOOD_COUNT: bool = False
+    SET_FOOD_COUNT: int = 10
+    VARIABLE_OBSTACLE_COUNT: bool = False
+    OBSTACLE_CHOICE: int = 17
+    MAX_INVENTORY: int = 3
+
+    # Food tick behaviour
+    FOOD_TICK: bool = False
+    FOOD_TICK_SPEED: int = 8
+    USE_RANDOM_FOOD_TICK: bool = False
+    MAX_FOOD_TICK_SPEED: int = 10
+
     # Simulation toggles
     NUM_ENVS: int = 1
     NUM_AGENTS: int = 1
     VISUALIZE: bool = False
     TARGET_FPS: int = 60
     CELL_SIZE: int = 32
-    GRID_SIZE: int = 16
-    SEQUENCE_LENGTH: int = 1
+    SEQUENCE_LENGTH: int = 4
     DRAW_AGENT_PATH: bool = False
     HIGHLIGHT_MOVED_OBSTACLES: bool = False
     HIGHLIGHT_PLACED_OBSTACLES: bool = False
-    FOOD_TICK: bool = False
     PPO_TOGETHER: bool = False
     SAVE_FREQUENCY: int = 10
+    DEBUG: bool = False
+    USE_GLOBAL_STATE: bool = False
+
+    # Reward multipliers
+    USE_STEP_MULTIPLIER: bool = False
+    USE_SINCE_LAST_FOOD_MULTIPLIER: bool = False
+    USE_FOOD_MULTIPLIER: bool = False
+
+    # Agent/state dimensions
+    STATE_DIM: int = 13
 
     # Model persistence and optimization
     LOAD_MODEL: bool = False

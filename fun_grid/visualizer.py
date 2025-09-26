@@ -40,6 +40,7 @@ class GridVisualizer:
         self.colors = {
             CellType.EMPTY: (240, 240, 240),
             CellType.AGENT: (255, 0, 0),
+            CellType.OTHER_AGENT: (200, 0, 200),
             CellType.FOOD: (0, 255, 0),
             CellType.OBSTACLE: (40, 40, 40),
             CellType.MOVEABLE_OBSTACLE: (90, 90, 90),
