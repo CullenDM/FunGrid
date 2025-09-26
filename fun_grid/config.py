@@ -78,6 +78,10 @@ class Config:
     GRID_SIZE: int = 11
     SEQUENCE_LENGTH: int = 20
 
+    # Action space
+    NUM_ACTIONS: int = 3
+    NUM_DIRECTIONS: int = 4
+
     # Model persistence
     LOAD_MODEL: bool = True
     MODEL_NAME: str = "ms_pointer_001"

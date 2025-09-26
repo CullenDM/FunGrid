@@ -240,3 +240,7 @@ class EnvironmentSimulation:
 
 
 __all__ = ["EnvironmentSimulation"]
+
+
+if __name__ == "__main__":  # pragma: no cover - convenience CLI
+    EnvironmentSimulation().run()
