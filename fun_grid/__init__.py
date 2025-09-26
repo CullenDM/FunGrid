@@ -6,7 +6,7 @@ from .entities import Agent
 from .game import Game
 from .grid import GridEnvironment
 from .main import main
-from .rl import PPO, TransitionStorage
+from .rl import CoordPointerGRU, MLP, PPO, PPOAgent, RMSNorm1d, TransitionStorage
 from .simulation import EnvironmentSimulation
 from .visualizer import GridVisualizer
 
@@ -14,12 +14,16 @@ __all__ = [
     "Agent",
     "CellType",
     "Config",
+    "CoordPointerGRU",
     "EnvironmentSimulation",
     "Game",
     "GridVisualizer",
     "GridEnvironment",
+    "MLP",
     "ObstacleSetupChoice",
     "PPO",
+    "PPOAgent",
+    "RMSNorm1d",
     "TransitionStorage",
     "main",
 ]

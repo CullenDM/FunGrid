@@ -11,7 +11,7 @@ from torch import optim
 from .config import Config
 from .entities import Agent
 from .grid import GridEnvironment
-from .rl import PPO
+from .rl import PPO, PPOAgent
 from .visualizer import GridVisualizer
 
 
