@@ -10,8 +10,62 @@ import numpy as np
 
 from .cell_types import CellType, ObstacleSetupChoice
 from .config import Config
+from .constants import CELL_SIZE
 
 Coord = Tuple[int, int]
+
+
+class SpatialGrid:
+    """Simple spatial hash grid used by the legacy pygame game."""
+
+    def __init__(self, width: int, height: int, cell_size: int = CELL_SIZE) -> None:
+        self.cell_size = cell_size
+        self.cols = max(1, width // cell_size)
+        self.rows = max(1, height // cell_size)
+        self.grid: List[List[Set[object]]] = [
+            [set() for _ in range(self.rows)] for _ in range(self.cols)
+        ]
+
+    def _get_cell_coords(self, x: int, y: int) -> Coord:
+        col = max(0, min(self.cols - 1, x // self.cell_size))
+        row = max(0, min(self.rows - 1, y // self.cell_size))
+        return col, row
+
+    def is_in_bounds(self, x: int, y: int) -> bool:
+        col, row = x // self.cell_size, y // self.cell_size
+        return 0 <= col < self.cols and 0 <= row < self.rows
+
+    def insert(self, item: object, x: int, y: int) -> None:
+        col, row = self._get_cell_coords(x, y)
+        self.grid[col][row].add(item)
+
+    def remove(self, item: object, x: int, y: int) -> None:
+        col, row = self._get_cell_coords(x, y)
+        self.grid[col][row].discard(item)
+
+    def move(self, item: object, x_from: int, y_from: int, x_to: int, y_to: int) -> None:
+        self.remove(item, x_from, y_from)
+        self.insert(item, x_to, y_to)
+
+    def get_items(self, x: int, y: int) -> Set[object]:
+        if not self.is_in_bounds(x, y):
+            return set()
+        col, row = self._get_cell_coords(x, y)
+        return set(self.grid[col][row])
+
+    def get_empty_cells(self) -> List[Coord]:
+        empty_cells: List[Coord] = []
+        for col in range(self.cols):
+            for row in range(self.rows):
+                if not self.grid[col][row]:
+                    empty_cells.append((col * self.cell_size, row * self.cell_size))
+        return empty_cells
+
+    def random_empty_cell(self) -> Coord | None:
+        empty = self.get_empty_cells()
+        if not empty:
+            return None
+        return random.choice(empty)
 
 
 class GridEnvironment:

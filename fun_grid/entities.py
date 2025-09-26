@@ -5,14 +5,25 @@ from __future__ import annotations
 from collections import deque
 import random
 from enum import Enum
-from typing import Deque, List, Set, Tuple
+from typing import Deque, List, Sequence, Set, Tuple
 
 import torch
 from torch.distributions import Categorical
 
 from .cell_types import CellType
 from .config import Config
+from .constants import AGENT_COLOR, CELL_SIZE, FOOD_COLOR, OBSTACLE_COLOR
 from .rl import TransitionStorage
+
+try:  # pragma: no cover - optional pygame dependency
+    import pygame
+except ModuleNotFoundError:  # pragma: no cover - allows headless use
+    pygame = None
+
+if pygame is not None:
+    Surface = pygame.surface.Surface
+else:  # pragma: no cover - type checker helper
+    Surface = object  # type: ignore[misc, assignment]
 
 
 class Action(Enum):
@@ -531,4 +542,102 @@ class Agent:
         return self.FOOD_REWARD
 
 
-__all__ = ["Action", "Agent", "Direction"]
+class GameEntity:
+    """Base pygame entity used by the lightweight arcade game."""
+
+    def __init__(self, x: int, y: int) -> None:
+        self.x = x
+        self.y = y
+
+    def rect(self) -> tuple[int, int, int, int]:
+        return (self.x, self.y, CELL_SIZE, CELL_SIZE)
+
+    def render(self, surface: Surface) -> None:
+        raise NotImplementedError
+
+
+class GameObstacle(GameEntity):
+    def render(self, surface: Surface) -> None:  # pragma: no cover - requires pygame
+        if pygame is None:
+            raise RuntimeError("pygame is required to render GameObstacle")
+        pygame.draw.rect(surface, OBSTACLE_COLOR, self.rect())
+
+
+class GameFood(GameEntity):
+    def render(self, surface: Surface) -> None:  # pragma: no cover - requires pygame
+        if pygame is None:
+            raise RuntimeError("pygame is required to render GameFood")
+        center = (self.x + CELL_SIZE // 2, self.y + CELL_SIZE // 2)
+        pygame.draw.circle(surface, FOOD_COLOR, center, CELL_SIZE // 4)
+
+
+class GameAgent(GameEntity):
+    """Player-controlled agent for the pygame experience."""
+
+    MOVE_MAP = {
+        "up": (0, -CELL_SIZE),
+        "down": (0, CELL_SIZE),
+        "left": (-CELL_SIZE, 0),
+        "right": (CELL_SIZE, 0),
+    }
+
+    def __init__(self, x: int, y: int, *, color: tuple[int, int, int] = AGENT_COLOR) -> None:
+        super().__init__(x, y)
+        self.color = color
+        self.food_eaten = 0
+        self.steps_since_food = 0
+        self.score = 0
+
+    def render(self, surface: Surface) -> None:  # pragma: no cover - requires pygame
+        if pygame is None:
+            raise RuntimeError("pygame is required to render GameAgent")
+        pygame.draw.rect(surface, self.color, self.rect())
+
+    def move(self, direction: str, grid, foods: List["GameFood"]) -> int:
+        dx, dy = self.MOVE_MAP.get(direction, (0, 0))
+        if dx == dy == 0:
+            return 0
+        target_x = self.x + dx
+        target_y = self.y + dy
+        if not grid.is_in_bounds(target_x, target_y):
+            return -10
+
+        items = grid.get_items(target_x, target_y)
+        if any(isinstance(item, GameObstacle) for item in items):
+            return -10
+
+        grid.move(self, self.x, self.y, target_x, target_y)
+        self.x, self.y = target_x, target_y
+        reward = -1
+        for item in list(items):
+            if isinstance(item, GameFood):
+                reward = 100
+                self.food_eaten += 1
+                self.score += 100
+                self.steps_since_food = 0
+                foods.remove(item)
+                grid.remove(item, item.x, item.y)
+        if reward <= 0:
+            self.steps_since_food += 1
+        return reward
+
+    def get_view(self, grid, size: int = 7) -> List[List[Sequence[int]]]:
+        half = size // 2
+        view: List[List[Sequence[int]]] = []
+        for y in range(self.y - half * CELL_SIZE, self.y + (half + 1) * CELL_SIZE, CELL_SIZE):
+            row: List[Sequence[int]] = []
+            for x in range(self.x - half * CELL_SIZE, self.x + (half + 1) * CELL_SIZE, CELL_SIZE):
+                items = grid.get_items(x, y)
+                if any(isinstance(item, GameAgent) for item in items):
+                    row.append([0, 0, 0, 1])
+                elif any(isinstance(item, GameObstacle) for item in items):
+                    row.append([0, 1, 0, 0])
+                elif any(isinstance(item, GameFood) for item in items):
+                    row.append([0, 0, 1, 0])
+                else:
+                    row.append([1, 0, 0, 0])
+            view.append(row)
+        return view
+
+
+__all__ = ["Action", "Agent", "Direction", "GameEntity", "GameObstacle", "GameFood", "GameAgent"]
